@@ -2,21 +2,25 @@ import os
 from openai import OpenAI
 from google import genai  
 from gtts import gTTS
+from dotenv import load_dotenv
+
+load_dotenv()
 
 nvidia_client = OpenAI(
   base_url="https://integrate.api.nvidia.com/v1",
-  api_key="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"  # <--- PASTE REAL KEY HERE
+  api_key=os.environ.get("NVIDIA_API_KEY")  # <-- SAFELY PULLS FROM .ENV
 )
 
+# 2. Gemini API (The Grader)
 gemini_client = genai.Client(
-    api_key="AIzaSyAWF2VC9CT7HA1obzwnEgW0gl0KvKb04kM"      # <--- PASTE REAL KEY HERE
+    api_key=os.environ.get("GEMINI_API_KEY")  # <-- SAFELY PULLS FROM .ENV
 )
 
-while(True):
-    if not nvidia_client or not gemini_client:
-        print("Error: NVIDIA or Gemini client not initialized. Please check your API keys.")
-        break
-# Personna
+
+if not nvidia_client or not gemini_client:
+    print("Error: NVIDIA or Gemini client not initialized. Please check your API keys.")
+
+# Persona
 learner = {
     "age": 17,
     "prep_level": "JEE Advanced",
@@ -65,10 +69,15 @@ The student answered: {user_answer}
 Did the student understand the core concept of {concept_logic}? 
 Reply strictly with 'PASS' or 'FAIL', followed by a 1-sentence reason.
 """
-grade = gemini_client.models.generate_content(
-    model='gemini-1.5-flash',  # <--- Change this from 2.0 to 1.5
-    contents=grader_prompt
+# grade = gemini_client.models.generate_content(
+#     model='gemini-1.5-flash',  # <--- Change this from 2.0 to 1.5
+#     contents=grader_prompt
+# )
+grade = nvidia_client.chat.completions.create(
+  model="meta/llama-3.1-70b-instruct",
+  messages=[{"role": "user", "content": grader_prompt}],
+  temperature=0.2,  # Lower temperature for deterministic, strict evaluation
+  max_tokens=100
 )
-
 print("\n[EVALUATION RESULT]")
-print(grade.text)
+print(grade.choices[0].message.content)
