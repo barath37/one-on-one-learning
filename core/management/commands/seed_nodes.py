@@ -38,4 +38,25 @@ class Command(BaseCommand):
                 difficulty_level=3,
             ),
         )
-        self.stdout.write(self.style.SUCCESS("Seeded 3 knowledge nodes."))
+        KnowledgeNode.objects.update_or_create(
+            node_id="stats_variance",
+            defaults=dict(
+                title="Variance",
+                prerequisite_node_id=None,
+                next_node_id="stats_linear_regression",
+                core_concept="Variance measures how spread out a set of numbers is from their average.",
+                difficulty_level=1,
+            ),
+        )
+        KnowledgeNode.objects.update_or_create(
+            node_id="stats_linear_regression",
+            defaults=dict(
+                title="Linear Regression",
+                prerequisite_node_id="stats_variance",
+                next_node_id=None,
+                core_concept="Linear regression finds the straight line that best fits a set of points by minimizing the variance of the errors between the line and the actual data.",
+                difficulty_level=2,
+            ),
+        )
+
+        self.stdout.write(self.style.SUCCESS("Seeded 5 knowledge nodes (math + stats chains)."))

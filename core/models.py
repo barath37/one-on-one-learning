@@ -23,6 +23,9 @@ class LearnerProfile(models.Model):
 
     current_node_id = models.CharField(max_length=100)
 
+    # --- "Talk of the Town" icebreaker, capped at once per calendar day ---
+    last_icebreaker_at = models.DateField(null=True, blank=True)
+
     def __str__(self):
         return self.user_id
 
