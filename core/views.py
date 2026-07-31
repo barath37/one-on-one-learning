@@ -61,22 +61,34 @@ def icebreaker_submit(request, learner_id):
 @require_http_methods(["GET"])
 def get_lesson(request, learner_id):
     profile = LearnerProfile.objects.get(user_id=learner_id)
-    node = KnowledgeNode.objects.get(node_id=profile.current_node_id)
-    prerequisite_node = None
-    if node.prerequisite_node_id:
-        prerequisite_node = KnowledgeNode.objects.filter(node_id=node.prerequisite_node_id).first()
+    
+    # Check if the frontend sent a custom topic!
+    requested_topic = request.GET.get('topic')
+    
+    if requested_topic:
+        # Create a dynamic "ghost" node on the fly using the user's topic
+        class DynamicNode:
+            title = requested_topic
+            core_concept = f"The fundamental principles and mechanics of {requested_topic}."
+            prerequisite_node_id = None
+        
+        node = DynamicNode()
+        prerequisite_node = None
+    else:
+        # Fallback to the database path if no topic is provided
+        node = KnowledgeNode.objects.get(node_id=profile.current_node_id)
+        prerequisite_node = KnowledgeNode.objects.filter(node_id=node.prerequisite_node_id).first() if node.prerequisite_node_id else None
 
     system_prompt = build_system_prompt(node, profile, prerequisite_node=prerequisite_node)
     lesson_text, source = generate_story(system_prompt)
 
     return JsonResponse({
-        "node_id": node.node_id,
+        "node_id": getattr(node, 'node_id', 'dynamic_topic'),
         "title": node.title,
         "lesson_text": lesson_text,
         "source": source,
         "mode": "implicit-repair" if profile.frustration_score == 1 and prerequisite_node else "normal",
     })
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
