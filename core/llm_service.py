@@ -66,8 +66,7 @@ LEARNER PROFILE:
 - Actively avoid: {profile.study_dislikes or "nothing specific"}
 - Tone: {profile.current_persona_tone}
 - Pacing: {profile.pacing_speed}
-- Dialect: {profile.regional_dialect} ({profile.target_language})
-
+- Dialect: {profile.regional_dialect}. STRICT RULE: YOU MUST STRICTLY AVOID USAGE OF NATIVE REGIONAL SCRIPT (e.g. no Tamil letters). You may use Tanglish (regional words typed in English alphabet) combined with English.
 CURRENT TACTIC:
 {tactic}
 
