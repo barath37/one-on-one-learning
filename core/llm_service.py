@@ -60,16 +60,19 @@ def generate_story(system_prompt: str) -> tuple[str, str]:
 
 
 def grade_answer(lesson_text: str, user_answer: str, core_concept: str) -> dict:
-    """Gemini always grades, regardless of which model told the story."""
+    """NVIDIA now grades, ensuring a 100% reliable demo without Gemini quota errors."""
     grader_prompt = f"""
 The teacher asked this question embedded in a story: {lesson_text}
 The student answered: {user_answer}
 Did the student understand the core concept of {core_concept}?
 Reply strictly with 'PASS' or 'FAIL', followed by a 1-sentence reason.
 """
-    result = GEMINI_CLIENT.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=grader_prompt,
+    completion = NVIDIA_CLIENT.chat.completions.create(
+        model="meta/llama-3.1-70b-instruct",
+        messages=[{"role": "user", "content": grader_prompt}],
+        temperature=0.2,  # Low temperature for strict, deterministic grading
+        max_tokens=100
     )
-    text = result.text.strip()
+    
+    text = completion.choices[0].message.content.strip()
     return {"passed": text.upper().startswith("PASS"), "raw": text}
