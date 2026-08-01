@@ -37,4 +37,10 @@ urlpatterns = [
     path("tts/", views.text_to_speech, name="text_to_speech"),
     path("voice-recognition/", views.voice_recognition_stub, name="voice_recognition_stub"),
     path("ocr/", views.ocr_stub, name="ocr_stub"),
+
+    # OpenCV Demo
+    path("cv-demo/launch/", views.launch_cv_demo, name="launch_cv_demo"),
+
+    # Whiteboard AI Vision
+    path("whiteboard/ask/", views.whiteboard_ask, name="whiteboard_ask"),
 ]

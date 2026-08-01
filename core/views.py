@@ -4,11 +4,19 @@
 # Ollama fallback) handles everything: storytelling, grading, classification,
 # curriculum drafting, mermaid diagrams.
 import os
+import sys
+import subprocess
 import re
 import json
 import base64
 import asyncio
+import requests
 from io import BytesIO
+
+def get_nvidia_client_key():
+    return os.getenv("NVIDIA_API_KEY", "")
+
+NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 from django.http import JsonResponse
 from django.utils import timezone
@@ -661,3 +669,60 @@ def voice_recognition_stub(request):
 @require_http_methods(["POST"])
 def ocr_stub(request):
     return JsonResponse({"implemented": False, "note": "OCR/file attachments deferred — not built yet."})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def launch_cv_demo(request):
+    """Launches the OpenCV AR script in a new local window"""
+    try:
+        subprocess.Popen([sys.executable, "cv_demo/main.py"])
+        return JsonResponse({"launched": True})
+    except Exception as exc:
+        return JsonResponse({"launched": False, "error": str(exc)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def whiteboard_ask(request):
+    """Analyzes student whiteboard drawings using NVIDIA Vision"""
+    try:
+        data = json.loads(request.body)
+        img_b64 = data.get("image_base64", "")
+        
+        api_key = get_nvidia_client_key()
+        if api_key:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": "meta/llama-3.2-11b-vision-instruct",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "The student drew this on a digital whiteboard to ask a question. Analyze what they drew and answer their question clearly and concisely."},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
+                        ]
+                    }
+                ],
+                "temperature": 0.2,
+                "max_tokens": 512
+            }
+            try:
+                response = requests.post(NVIDIA_API_URL, headers=headers, json=payload, timeout=30)
+                if response.status_code == 200:
+                    res_data = response.json()
+                    reply = res_data["choices"][0]["message"]["content"].strip()
+                    return JsonResponse({"reply": reply})
+            except Exception as e:
+                print(f"Vision API call failed, falling back: {e}")
+
+        # Fallback explanation if key missing or Vision API call fails
+        reply, _ = _chat("The student drew a diagram or math/physics question on their whiteboard. Explain the core concept behind drawings, equations, and diagrams step-by-step.")
+        return JsonResponse({"reply": reply})
+    except Exception as exc:
+        return JsonResponse({"error": f"Vision analysis failed: {str(exc)}"}, status=500)
+
+

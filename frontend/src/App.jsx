@@ -2,7 +2,7 @@
 // ONE file: the entire frontend. Replace src/App.jsx entirely with this.
 // Requires: npm install mermaid lucide-react
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Book, MessageSquare, Layers, Mic, Volume2, Send, CheckCircle2 } from 'lucide-react';
+import { Search, Book, MessageSquare, Layers, Mic, Volume2, Send, CheckCircle2, Edit3 } from 'lucide-react';
 import mermaid from 'mermaid';
 
 mermaid.initialize({ startOnLoad: false, theme: 'dark' });
@@ -25,6 +25,7 @@ export default function App() {
       {route === '/history' && <HistoryPage onNavigate={navigate} />}
       {route === '/library' && <LibraryPage onNavigate={navigate} />}
       {route === '/tracks' && <TracksPage onNavigate={navigate} />}
+      {route === '/whiteboard' && <WhiteboardPage onNavigate={navigate} />}
     </div>
   );
 }
@@ -38,6 +39,7 @@ function AppLayout({ children, currentRoute, onNavigate, listMode = false }) {
     { id: '/library', label: 'Library', icon: Book },
     { id: '/tracks', label: 'Tracks', icon: Layers },
     { id: '/history', label: 'History', icon: MessageSquare },
+    { id: '/whiteboard', label: 'Whiteboard', icon: Edit3 },
   ];
   return (
     <div className="min-h-screen flex flex-col text-white">
@@ -58,7 +60,7 @@ function AppLayout({ children, currentRoute, onNavigate, listMode = false }) {
           {/* --- NEW: Learn via CV Button + Avatar --- */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => fetch(`${API_BASE}/cv-demo/main.py`, { method: 'POST' })}
+              onClick={() => fetch(`${API_BASE}/cv-demo/launch/`, { method: 'POST' })}
               className="px-5 py-2 bg-orange-600/90 hover:bg-orange-500 transition-colors rounded-full text-sm font-bold shadow-[0_0_15px_rgba(234,88,12,0.4)]"
             >
               Learn via CV
@@ -373,6 +375,7 @@ function HomeDashboard({ onNavigate }) {
         ))}
         <div ref={bottomRef} />
       </div>
+      <Whiteboard />
       <div className="flex gap-2 sticky bottom-4">
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()}
           placeholder={listening ? "🔴 Listening..." : "Type or speak..."} disabled={loading}
@@ -381,6 +384,102 @@ function HomeDashboard({ onNavigate }) {
         <button onClick={handleSend} disabled={loading} className="p-4 rounded-full bg-orange-600 disabled:opacity-40"><Send size={18} /></button>
       </div>
     </AppLayout>
+  );
+}
+
+// ---------------------------------------------------------
+// Interactive AI Whiteboard Component
+// ---------------------------------------------------------
+function Whiteboard() {
+  const canvasRef = useRef(null);
+  const [drawing, setDrawing] = useState(false);
+  const [reply, setReply] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const pos = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return [0, 0];
+    const r = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    return [(clientX - r.left) * scaleX, (clientY - r.top) * scaleY];
+  };
+
+  const start = (e) => {
+    setDrawing(true);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.beginPath();
+    ctx.moveTo(...pos(e));
+  };
+
+  const draw = (e) => {
+    if (!drawing) return;
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.lineTo(...pos(e));
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  };
+
+  const clear = () => {
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    setReply('');
+  };
+
+  const ask = async () => {
+    setIsLoading(true);
+    const imageBase64 = canvasRef.current.toDataURL('image/png').split(',')[1];
+    try {
+      const res = await fetch(`${API_BASE}/whiteboard/ask/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: imageBase64 })
+      });
+      const data = await res.json();
+      setReply(data.reply || data.error);
+    } catch (err) {
+      setReply(`Error: ${err.message}`);
+    }
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="bg-white/10 backdrop-blur-2xl border border-white/20 p-6 rounded-3xl mt-8 mb-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]">
+      <h3 className="font-serif text-xl text-white font-bold mb-3 drop-shadow-md">AI Scratchpad / Whiteboard</h3>
+      <p className="text-stone-300 text-sm mb-4">Draw a formula, diagram, or question below and ask the AI!</p>
+      
+      <canvas 
+        ref={canvasRef} 
+        width={800} 
+        height={350} 
+        className="bg-black/40 border border-white/20 rounded-2xl w-full cursor-crosshair touch-none"
+        onMouseDown={start} 
+        onMouseMove={draw} 
+        onMouseUp={() => setDrawing(false)} 
+        onMouseLeave={() => setDrawing(false)} 
+        onTouchStart={start}
+        onTouchMove={draw}
+        onTouchEnd={() => setDrawing(false)}
+      />
+
+      <div className="flex gap-3 mt-4">
+        <button onClick={ask} disabled={isLoading} className="px-6 py-2 bg-orange-600 hover:bg-orange-500 font-bold text-white rounded-full text-sm shadow-md transition-all disabled:opacity-50">
+          {isLoading ? "Analyzing Drawing..." : "Ask AI"}
+        </button>
+        <button onClick={clear} className="px-6 py-2 bg-white/10 hover:bg-white/20 font-bold text-stone-200 rounded-full text-sm transition-all">
+          Clear
+        </button>
+      </div>
+
+      {reply && (
+        <div className="mt-4 p-4 bg-black/30 border border-white/10 rounded-2xl text-stone-200 text-sm whitespace-pre-wrap">
+          {reply}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -641,5 +740,14 @@ function ModulesTab({ tracks, activeTrackId, onSelectTrack }) {
         )}
       </div>
     </div>
+  );
+}
+
+function WhiteboardPage({ onNavigate }) {
+  return (
+    <AppLayout currentRoute="/whiteboard" onNavigate={onNavigate} listMode>
+      <h2 className="text-2xl font-serif font-bold mb-2">Interactive AI Whiteboard</h2>
+      <Whiteboard />
+    </AppLayout>
   );
 }
