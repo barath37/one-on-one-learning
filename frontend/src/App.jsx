@@ -71,6 +71,9 @@ function OnboardingFlow({ onNavigate, onComplete }) {
     age: '', 
     interest: '', 
     dialect: '',
+    motherTongue: '',
+    birthplace: '',
+    residence: '',
     prepLevel: 'Novice (Exploring fundamentals)', 
     psychScore: 3 
   });
@@ -92,8 +95,12 @@ function OnboardingFlow({ onNavigate, onComplete }) {
             user_id: USER_ID,
             stated_age: formData.age,
             domain: formData.interest,
-            inspiration: formData.prepLevel,
-            dislikes: formData.dialect
+            dialect: formData.dialect,
+            mother_tongue: formData.motherTongue,
+            birthplace: formData.birthplace,
+            residence: formData.residence,
+            prep_level: formData.prepLevel,
+            psych_score: formData.psychScore
           })
         });
         setIsGenerating(false);
@@ -175,6 +182,21 @@ function OnboardingFlow({ onNavigate, onComplete }) {
                   <div>
                     <label className="block text-sm font-bold text-stone-200 mb-1 drop-shadow-md">Location & Languages Spoken</label>
                     <input type="text" value={formData.dialect} onChange={(e) => setFormData({...formData, dialect: e.target.value})} className="w-full p-4 rounded-2xl border border-white/20 bg-black/20 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-orange-500/70 transition-all text-white placeholder:text-stone-400 font-bold" placeholder="e.g. Coimbatore, Kongu Tamil, English..." />
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div className="w-1/3">
+                      <label className="block text-sm font-bold text-stone-200 mb-1 drop-shadow-md">Mother Tongue</label>
+                      <input type="text" value={formData.motherTongue} onChange={(e) => setFormData({...formData, motherTongue: e.target.value})} className="w-full p-4 rounded-2xl border border-white/20 bg-black/20 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-orange-500/70 transition-all text-white placeholder:text-stone-400 font-bold" placeholder="Tamil" />
+                    </div>
+                    <div className="w-1/3">
+                      <label className="block text-sm font-bold text-stone-200 mb-1 drop-shadow-md">Birthplace</label>
+                      <input type="text" value={formData.birthplace} onChange={(e) => setFormData({...formData, birthplace: e.target.value})} className="w-full p-4 rounded-2xl border border-white/20 bg-black/20 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-orange-500/70 transition-all text-white placeholder:text-stone-400 font-bold" placeholder="Coimbatore" />
+                    </div>
+                    <div className="w-1/3">
+                      <label className="block text-sm font-bold text-stone-200 mb-1 drop-shadow-md">Residence</label>
+                      <input type="text" value={formData.residence} onChange={(e) => setFormData({...formData, residence: e.target.value})} className="w-full p-4 rounded-2xl border border-white/20 bg-black/20 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-orange-500/70 transition-all text-white placeholder:text-stone-400 font-bold" placeholder="Trichy" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -340,14 +362,20 @@ function HomeDashboard({ onNavigate, profile }) {
           body: JSON.stringify({ answer: userText, lesson_text: lastLessonText })
         });
         const data = await res.json();
-        
-        let feedbackText = data.passed ? "🟢 Brilliant! " : "🔴 Not quite right. ";
-        feedbackText += data.feedback;
-        if (data.message) feedbackText += `\n\n📌 *Mentor Note: ${data.message}*`;
+        if (!res.ok) {
+          setChatHistory(prev => [...prev, { role: 'ai', text: `⚠️ ${data.error || 'Grading failed.'}`, isFeedback: true, passed: false }]);
+        } else {
+          let feedbackText = data.passed ? "🟢 Brilliant! " : "🔴 Not quite right. ";
+          feedbackText += data.feedback;
+          if (data.message) feedbackText += `\n\n📌 *Mentor Note: ${data.message}*`;
 
-        setChatHistory(prev => [...prev, { role: 'ai', text: feedbackText, isFeedback: true, passed: data.passed }]);
-        if (data.passed) setCurrentMode('asking_topic');
-      } catch(err) { console.error(err); }
+          setChatHistory(prev => [...prev, { role: 'ai', text: feedbackText, isFeedback: true, passed: data.passed }]);
+          if (data.passed) setCurrentMode('asking_topic');
+        }
+      } catch(err) {
+        console.error(err);
+        setChatHistory(prev => [...prev, { role: 'ai', text: "⚠️ Couldn't reach the server to grade that.", isFeedback: true, passed: false }]);
+      }
       setIsLoading(false);
     }
   };
@@ -360,10 +388,28 @@ function HomeDashboard({ onNavigate, profile }) {
       try {
         const res = await fetch(`${API_BASE}/lesson/${USER_ID}/?topic=${encodeURIComponent(pendingTopic)}`);
         const data = await res.json();
-        setLastLessonText(data.lesson_text);
-        setChatHistory(prev => [...prev, { role: 'ai', text: data.lesson_text }]);
-        setCurrentMode('answering_question');
-      } catch (err) { console.error(err); }
+        if (!res.ok) {
+          // Backend returned a clean JSON error (e.g. LLM chain down, or profile missing)
+          setChatHistory(prev => [...prev, {
+            role: 'ai',
+            text: `⚠️ ${data.error || 'Something went wrong generating that lesson.'}${data.detail ? `\n\n${data.detail}` : ''}`,
+            isFeedback: true, passed: false,
+          }]);
+          setCurrentMode('asking_topic'); // don't leave the input stuck disabled
+        } else {
+          setLastLessonText(data.lesson_text);
+          setChatHistory(prev => [...prev, { role: 'ai', text: data.lesson_text }]);
+          setCurrentMode('answering_question');
+        }
+      } catch (err) {
+        console.error(err);
+        setChatHistory(prev => [...prev, {
+          role: 'ai',
+          text: "⚠️ Couldn't reach the server — check that the Django backend is running.",
+          isFeedback: true, passed: false,
+        }]);
+        setCurrentMode('asking_topic');
+      }
       setIsLoading(false);
     } else {
       setChatHistory(prev => [...prev, { role: 'user', text: "No, let's pick something else." }]);
@@ -467,5 +513,75 @@ function HomeDashboard({ onNavigate, profile }) {
   );
 }
 
-function HistoryPage({ onNavigate }) { return (<AppLayout currentRoute="/history" onNavigate={onNavigate}><div className="max-w-3xl mx-auto"><div className="bg-white/10 backdrop-blur-2xl p-12 rounded-[3rem] text-center border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"><h2 className="text-3xl font-serif text-white font-bold drop-shadow-lg">History (Coming Soon)</h2></div></div></AppLayout>); }
-function LearningsPage({ onNavigate }) { return (<AppLayout currentRoute="/learnings" onNavigate={onNavigate}><div className="max-w-3xl mx-auto"><div className="bg-white/10 backdrop-blur-2xl p-12 rounded-[3rem] text-center border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]"><h2 className="text-3xl font-serif text-white font-bold drop-shadow-lg">Library (Coming Soon)</h2></div></div></AppLayout>); }
+function HistoryPage({ onNavigate }) {
+  const [mistakes, setMistakes] = useState(null); // null = loading
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/mistakes/${USER_ID}/`)
+      .then(res => res.json())
+      .then(data => setMistakes(data.mistakes))
+      .catch(err => setError(err.message));
+  }, []);
+
+  return (
+    <AppLayout currentRoute="/history" onNavigate={onNavigate}>
+      <div className="max-w-3xl mx-auto w-full space-y-4">
+        <h2 className="text-3xl font-serif text-white font-bold drop-shadow-lg mb-6">History</h2>
+        {error && <p className="text-red-300">⚠️ Couldn't load history: {error}</p>}
+        {mistakes === null && !error && <p className="text-stone-300">Loading...</p>}
+        {mistakes && mistakes.length === 0 && (
+          <div className="bg-white/10 backdrop-blur-2xl p-12 rounded-[3rem] text-center border border-white/20">
+            <p className="text-stone-200">No mistakes logged yet — nothing to review!</p>
+          </div>
+        )}
+        {mistakes && mistakes.map((m, i) => (
+          <div key={i} className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-6">
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-serif text-lg text-white font-bold">{m.node_id}</span>
+              <span className="text-xs text-stone-400">{new Date(m.created_at).toLocaleString()}</span>
+            </div>
+            <p className="text-stone-300 text-sm mb-1"><span className="text-stone-400">Your answer:</span> {m.user_answer}</p>
+            <p className="text-stone-200 text-sm">{m.ai_feedback}</p>
+            {m.fallback_node_id && (
+              <p className="text-orange-300 text-xs mt-2">↳ redirected to prerequisite: {m.fallback_node_id}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </AppLayout>
+  );
+}
+
+function LearningsPage({ onNavigate }) {
+  const [topics, setTopics] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/topics/${USER_ID}/`)
+      .then(res => res.json())
+      .then(data => setTopics(data.topics))
+      .catch(err => setError(err.message));
+  }, []);
+
+  return (
+    <AppLayout currentRoute="/learnings" onNavigate={onNavigate}>
+      <div className="max-w-3xl mx-auto w-full space-y-4">
+        <h2 className="text-3xl font-serif text-white font-bold drop-shadow-lg mb-6">Library</h2>
+        {error && <p className="text-red-300">⚠️ Couldn't load library: {error}</p>}
+        {topics === null && !error && <p className="text-stone-300">Loading...</p>}
+        {topics && topics.length === 0 && (
+          <div className="bg-white/10 backdrop-blur-2xl p-12 rounded-[3rem] text-center border border-white/20">
+            <p className="text-stone-200">Nothing explored yet — go learn something on Home!</p>
+          </div>
+        )}
+        {topics && topics.map((t, i) => (
+          <div key={i} className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 flex justify-between items-center">
+            <span className="font-serif text-lg text-white font-bold">{t.title}</span>
+            <span className="text-xs text-stone-400">last seen {new Date(t.last_seen).toLocaleDateString()}</span>
+          </div>
+        ))}
+      </div>
+    </AppLayout>
+  );
+}

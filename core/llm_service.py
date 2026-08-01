@@ -32,6 +32,7 @@ def _chat(prompt: str, max_tokens: int = 250) -> tuple[str, str]:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=max_tokens,
+            timeout=15,  # local model on CPU can be slow but shouldn't hang forever
         )
         return completion.choices[0].message.content, "ollama-fallback"
 
@@ -102,6 +103,38 @@ Text: "{user_reply}"
     return interest, source
 
 
+def derive_and_link_prerequisite(node) -> None:
+    """Asks the LLM for the single foundational concept underneath `node`, creates
+    a KnowledgeNode for it if it doesn't exist, and links it via node.prerequisite_node_id.
+    Runs once per node — after the first call it's a plain DB lookup, not another
+    LLM round-trip. This is what makes the implicit/explicit fallback work for
+    freeform topics too, not just the pre-seeded math/stats chains."""
+    from .models import KnowledgeNode  # local import, avoids a circular import at module load
+
+    prompt = f"""
+A student is struggling with: {node.title} ({node.core_concept})
+Name ONE single foundational prerequisite concept they likely need first, and
+explain it in one sentence. Respond in EXACTLY this format, nothing else:
+TITLE: <2-5 word concept name>
+EXPLANATION: <one sentence, the ground-truth logic of that concept>
+"""
+    raw, _source = _chat(prompt, max_tokens=80)
+    title, explanation = "Foundational concept", f"A foundational idea underlying {node.title}."
+    for line in raw.splitlines():
+        if line.upper().startswith("TITLE:"):
+            title = line.split(":", 1)[1].strip()
+        elif line.upper().startswith("EXPLANATION:"):
+            explanation = line.split(":", 1)[1].strip()
+
+    prereq_id = f"prereq_{node.node_id}"
+    KnowledgeNode.objects.get_or_create(
+        node_id=prereq_id,
+        defaults=dict(title=title, core_concept=explanation),
+    )
+    node.prerequisite_node_id = prereq_id
+    node.save()
+
+
 def grade_answer(lesson_text: str, user_answer: str, core_concept: str) -> dict:
     grader_prompt = f"""
 The teacher asked this question embedded in a story: {lesson_text}
@@ -109,9 +142,15 @@ The student answered: {user_answer}
 Did the student understand the core concept of {core_concept}?
 Reply strictly with 'PASS' or 'FAIL', followed by a 1-sentence reason.
 """
-    result = GEMINI_CLIENT.models.generate_content(
-        model="gemini-1.5-flash",  # confirmed working — 2.5-flash 404s for new API keys
-        contents=grader_prompt,
-    )
-    text = result.text.strip()
-    return {"passed": text.upper().startswith("PASS"), "raw": text}
+    try:
+        result = GEMINI_CLIENT.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=grader_prompt,
+            config={"http_options": {"timeout": 8000}},  # ms — never let a blocked network hang the whole server
+        )
+        text = result.text.strip()
+        return {"passed": text.upper().startswith("PASS"), "raw": text}
+    except Exception as exc:
+        # Gemini unreachable (network-blocked, rate-limited, etc.) — don't hang
+        # the request or crash the view; be honest that grading didn't actually run.
+        return {"passed": False, "raw": f"Grading unavailable right now ({exc.__class__.__name__}) — network to Gemini may be blocked on this connection."}

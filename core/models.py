@@ -8,12 +8,16 @@ class LearnerProfile(models.Model):
     # --- From the onboarding quiz ---
     stated_age = models.IntegerField(null=True, blank=True)
     assessed_learning_age = models.CharField(max_length=20, default="unassessed")
+    psych_score = models.IntegerField(default=3)  # 1-5 learning-behavior slider from onboarding
     domain_of_interest = models.CharField(max_length=100, default="general")
     inspiration = models.CharField(max_length=150, blank=True, default="")
     study_dislikes = models.TextField(blank=True, default="")
 
     target_language = models.CharField(max_length=50, default="Tamil")
     regional_dialect = models.CharField(max_length=50, default="Kongu Tamil")
+    mother_tongue = models.CharField(max_length=100, blank=True, default="")
+    birthplace = models.CharField(max_length=150, blank=True, default="")
+    residence = models.CharField(max_length=150, blank=True, default="")
 
     # --- Adaptive persona state ---
     current_persona_tone = models.CharField(max_length=50, default="warm and encouraging")
@@ -52,3 +56,19 @@ class MistakeLog(models.Model):
 
     def __str__(self):
         return f"{self.learner.user_id} @ {self.node_id} ({self.created_at:%H:%M:%S})"
+
+
+class LessonLog(models.Model):
+    """Every lesson actually delivered, regardless of pass/fail — this is what
+    powers the Library (topics explored) and gives History something real
+    beyond just failures."""
+    learner = models.ForeignKey(LearnerProfile, on_delete=models.CASCADE, related_name="lessons")
+    node_id = models.CharField(max_length=100)
+    title = models.CharField(max_length=200)
+    mode = models.CharField(max_length=20, default="normal")  # "normal" or "implicit-repair"
+    user_answer = models.TextField(blank=True, default="")  # filled in once evaluate_answer runs
+    passed = models.BooleanField(null=True, blank=True)      # None until answered
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.learner.user_id}: {self.title} ({self.created_at:%H:%M:%S})"
