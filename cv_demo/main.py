@@ -7,8 +7,10 @@ from components import DraggableComponent
 from circuit import CircuitRenderer
 
 def main():
-    # Initialize Camera
-    cap = cv2.VideoCapture(0)
+    # Initialize Camera (Use DirectShow on Windows to prevent MSMF capture failure)
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
     
