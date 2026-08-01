@@ -1,0 +1,5 @@
+django
+django-cors-headers
+python-dotenv
+openai
+edge-tts
