@@ -44,15 +44,28 @@ function AppLayout({ children, currentRoute, onNavigate, listMode = false }) {
       <header className="fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-5xl px-6 z-50">
         <div className="flex items-center justify-between p-3 px-6 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-full">
           <div className="font-serif text-xl font-bold cursor-pointer" onClick={() => onNavigate('/')}>Gurukul.</div>
-          <nav className="flex bg-black/30 rounded-full px-2 py-1 border border-white/10">
-            {navItems.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => onNavigate(id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all ${currentRoute === id ? 'bg-white/20' : 'text-stone-400 hover:text-white'}`}>
-                <Icon size={16} /> <span className="hidden md:inline">{label}</span>
-              </button>
-            ))}
+          <nav className="flex bg-black/20 backdrop-blur-md rounded-full px-2 py-2 shadow-inner border border-white/10">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button key={item.id} onClick={() => onNavigate(item.id)} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all ${currentRoute === item.id ? 'bg-white/20 text-white shadow-sm' : 'text-stone-300 hover:text-white hover:bg-white/10'}`}>
+                  <Icon size={16} /> <span className="hidden md:inline">{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
-          <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center font-bold border border-white/30">U</div>
+
+          {/* --- NEW: Learn via CV Button + Avatar --- */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fetch(`${API_BASE}/cv-demo/main.py`, { method: 'POST' })}
+              className="px-5 py-2 bg-orange-600/90 hover:bg-orange-500 transition-colors rounded-full text-sm font-bold shadow-[0_0_15px_rgba(234,88,12,0.4)]"
+            >
+              Learn via CV
+            </button>
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white font-serif font-bold border border-white/30 shadow-sm drop-shadow-md">U</div>
+          </div>
+          {/* ----------------------------------------- */}
         </div>
       </header>
       <main className={`w-full pt-28 pb-12 px-6 max-w-4xl mx-auto flex-1 flex flex-col ${listMode ? 'justify-start' : 'justify-end'}`}>
@@ -95,7 +108,7 @@ function OnboardingFlow({ onNavigate }) {
     }).catch(console.error);
   }, []);
 
-  const isStep1Valid = formData.age && formData.domain.trim() && formData.motherTongue.trim();
+  const isStep1Valid = formData.age && formData.domain.trim() && formData.motherTongue.trim() && formData.birthplace.trim() && formData.residence.trim() && formData.languagesSpoken.trim();
   const isStep2Valid = psychAnswers.every(a => a.trim().length > 0);
 
   const submit = async () => {
@@ -113,7 +126,7 @@ function OnboardingFlow({ onNavigate }) {
       onNavigate('/home');
     } catch (err) {
       console.error(err);
-      alert("Couldn't reach the server — is Django running?");
+      alert("Couldn't reach the server - is Django running?");
     }
     setSubmitting(false);
   };
@@ -136,7 +149,7 @@ function OnboardingFlow({ onNavigate }) {
                   <option>Advanced (refining expertise)</option>
                 </select>
               </div>
-              <input placeholder="Interests/domains — e.g. cricket, anime, cars" value={formData.domain} onChange={e => setFormData({ ...formData, domain: e.target.value })} className={inputClass} />
+              <input placeholder="Interests/domains - e.g. cricket, anime, cars" value={formData.domain} onChange={e => setFormData({ ...formData, domain: e.target.value })} className={inputClass} />
               <div className="flex gap-3">
                 <input placeholder="Mother tongue" value={formData.motherTongue} onChange={e => setFormData({ ...formData, motherTongue: e.target.value })} className={inputClass} />
                 <input placeholder="Birthplace" value={formData.birthplace} onChange={e => setFormData({ ...formData, birthplace: e.target.value })} className={inputClass} />
@@ -152,7 +165,7 @@ function OnboardingFlow({ onNavigate }) {
         {step === 2 && (
           <>
             <h2 className="text-2xl font-serif font-bold mb-1">How do you learn?</h2>
-            <p className="text-stone-400 text-sm mb-6">One-time — this shapes your pacing and tone, not graded.</p>
+            <p className="text-stone-400 text-sm mb-6">One-time - this shapes your pacing and tone, not graded.</p>
             <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
               {psychQuestions.map((q, i) => (
                 <div key={i}>
@@ -218,6 +231,19 @@ function HomeDashboard({ onNavigate }) {
   const push = (msg) => setChat(prev => [...prev, msg]);
 
   const handleSend = async () => {
+    const text0 = input.trim();
+    if ((mode === 'answering' || mode === 'prereq') && text0.endsWith('?')) {
+      push({ role: 'user', text: text0 }); setInput(''); setLoading(true);
+      const pendingQ = mode === 'prereq' ? prereqState.questions[prereqState.idx] : "your answer to the current question";
+      try {
+        const r = await fetch(`${API_BASE}/classify/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: `Briefly answer: ${text0}` }) });
+        // reuse _chat via lesson endpoint isn't ideal here  simplest: just call evaluate-less direct answer
+      } catch (e) { }
+      const sideRes = await fetch(`${API_BASE}/tts/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: '' }) }).catch(() => { });
+      setLoading(false);
+      push({ role: 'ai', text: `(quick aside — answering that separately isn't wired to a real endpoint yet)\n\nNow back to: ${pendingQ}` });
+      return;
+    }
     const text = input.trim();
     if (!text) return;
     push({ role: 'user', text });
@@ -256,10 +282,10 @@ function HomeDashboard({ onNavigate }) {
           });
           const data = await res.json();
           if (data.escalate) {
-            push({ role: 'ai', text: `Looks like this needs real depth — I've built you a full track: "${data.track_title}". Check the Tracks tab!` });
+            push({ role: 'ai', text: `Looks like this needs real depth - I've built you a full track: "${data.track_title}". Check the Tracks tab!` });
             setMode('idle');
           } else {
-            push({ role: 'ai', text: "Good foundation — let's dive in!" });
+            push({ role: 'ai', text: "Good foundation - let's dive in!" });
             await fetchLesson(prereqState.topic);
           }
         } catch (err) { console.error(err); push({ role: 'ai', text: "⚠️ Couldn't reach the server." }); }
@@ -286,7 +312,7 @@ function HomeDashboard({ onNavigate }) {
         setMode('prereq');
         push({ role: 'ai', text: `Quick check before we dive in:\n${pq.questions[0]}` });
       } else {
-        push({ role: 'ai', text: `That's a meaty topic — go to the Tracks tab to build a full curriculum for "${text}".` });
+        push({ role: 'ai', text: `That's a meaty topic - go to the Tracks tab to build a full curriculum for "${text}".` });
       }
     } catch (err) { console.error(err); push({ role: 'ai', text: "⚠️ Couldn't reach the server." }); }
     setLoading(false);
@@ -322,7 +348,7 @@ function HomeDashboard({ onNavigate }) {
   // for actual use today)
   const handleMic = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert('Voice input not supported in this browser — try Chrome.'); return; }
+    if (!SpeechRecognition) { alert('Voice input not supported in this browser - try Chrome.'); return; }
     const recog = new SpeechRecognition();
     recog.lang = 'en-IN';
     recog.onstart = () => setListening(true);
@@ -349,9 +375,9 @@ function HomeDashboard({ onNavigate }) {
       </div>
       <div className="flex gap-2 sticky bottom-4">
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()}
-          placeholder="Type or speak..." disabled={loading}
-          className="flex-1 p-4 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-stone-500 focus:outline-none" />
-        <button onClick={handleMic} className={`p-4 rounded-full border border-white/20 ${listening ? 'bg-red-600' : 'bg-white/10'}`}><Mic size={18} /></button>
+          placeholder={listening ? "🔴 Listening..." : "Type or speak..."} disabled={loading}
+          className={`flex-1 p-4 rounded-full bg-white/10 border text-white placeholder:text-stone-500 focus:outline-none ${listening ? 'border-red-500 animate-pulse' : 'border-white/20'}`} />
+        <button onClick={handleMic} className={`p-4 rounded-full border border-white/20 ${listening ? 'bg-red-600 animate-pulse' : 'bg-white/10'}`}><Mic size={18} /></button>
         <button onClick={handleSend} disabled={loading} className="p-4 rounded-full bg-orange-600 disabled:opacity-40"><Send size={18} /></button>
       </div>
     </AppLayout>
@@ -385,7 +411,7 @@ function HistoryPage({ onNavigate }) {
     <AppLayout currentRoute="/history" onNavigate={onNavigate} listMode>
       <h2 className="text-2xl font-serif font-bold mb-4">History</h2>
       {mistakes === null && <p className="text-stone-400">Loading...</p>}
-      {mistakes?.length === 0 && <p className="text-stone-400">No mistakes yet — nothing to review!</p>}
+      {mistakes?.length === 0 && <p className="text-stone-400">No mistakes yet - nothing to review!</p>}
       <div className="space-y-3">
         {mistakes?.map((m, i) => (
           <div key={i} className="bg-white/5 border border-white/15 rounded-2xl p-4">
@@ -469,7 +495,7 @@ function CurriculaTab({ tracks, onFinalized, onSelect }) {
       setIterations(prev => [...prev, { id: data.iteration_id, prompt, response: data.response }]);
       setSelectedIterId(data.iteration_id);
       setPrompt('');
-    } catch (err) { console.error(err); alert('Curriculum drafting failed — check the server.'); }
+    } catch (err) { console.error(err); alert('Curriculum drafting failed - check the server.'); }
     setLoading(false);
   };
 
@@ -552,7 +578,7 @@ function ModulesTab({ tracks, activeTrackId, onSelectTrack }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }),
     });
     const data = await res.json();
-    alert(data.passed ? 'Nice — assignment marked done!' : `Not quite: ${data.feedback}`);
+    alert(data.passed ? 'Nice - assignment marked done!' : `Not quite: ${data.feedback}`);
     if (data.passed) openSubmodule({ id: activeSub.id, title: activeSub.title }, activeSub.moduleTitle, activeSub.moduleOrder);
     setAnswer('');
   };
@@ -564,7 +590,7 @@ function ModulesTab({ tracks, activeTrackId, onSelectTrack }) {
         {tracks.map(t => (
           <div key={t.id} onClick={() => onSelectTrack(t.id)} className="bg-white/5 border border-white/15 rounded-xl p-3 cursor-pointer hover:bg-white/10">{t.title}</div>
         ))}
-        {tracks.length === 0 && <p className="text-stone-500 text-sm">No tracks yet — build one in the Curricula tab.</p>}
+        {tracks.length === 0 && <p className="text-stone-500 text-sm">No tracks yet - build one in the Curricula tab.</p>}
       </div>
     );
   }
