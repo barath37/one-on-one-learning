@@ -47,7 +47,6 @@ desktop.ini
 # Large binary assets
 # ========================
 *.task
-*.mp4
 *.mov
 *.avi
 *.mkv
