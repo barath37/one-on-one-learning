@@ -3,7 +3,8 @@
 **Gurukul Learning**
 ## Team ID
 **H26EDU03**
-
+# Collage Name
+**Kumaraguru Collage of Technology**
 ## 👨‍💻 Team Members
 
 ### 1. NAGELLA VENKATA SIVA SAI ADVIK
