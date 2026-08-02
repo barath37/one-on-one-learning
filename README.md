@@ -1,6 +1,6 @@
-# 🎓 Gurukul — One-on-One Adaptive Learning Platform
+# 🎓 Gurukul - One-on-One Adaptive Learning Platform
 
-> **H26EDU03 — Gurukul Learning**
+> **H26EDU03 - Gurukul Learning**
 >
 > Built at **NIT Tiruchirappalli** | Organised by **Tata Centre for Artificial Intelligence and Machine Learning**
 
